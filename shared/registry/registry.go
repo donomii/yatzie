@@ -2,11 +2,12 @@
 package plugin_registry
 
 import (
-	"github.com/go-telegram-bot/yatzie/shared/utils"
-	"github.com/tucnak/telebot"
 	"log"
 	"reflect"
 	"strings"
+
+	"github.com/donomii/yatzie/shared/utils"
+	"github.com/tucnak/telebot"
 )
 
 type TelegramPlugin interface {

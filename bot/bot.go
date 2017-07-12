@@ -1,8 +1,8 @@
 package yatziebot
 
 import (
-	"github.com/go-telegram-bot/yatzie/shared/registry"
-	"github.com/go-telegram-bot/yatzie/shared/utils"
+	"github.com/donomii/yatzie/shared/registry"
+	"github.com/donomii/yatzie/shared/utils"
 	"github.com/tucnak/telebot"
 
 	"log"

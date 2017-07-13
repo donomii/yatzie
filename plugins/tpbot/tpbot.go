@@ -3,6 +3,7 @@ package tpbot
 import (
 	"log"
 	//"strings"
+	"fmt"
 
 	"github.com/donomii/pbot"
 	"github.com/donomii/yatzie/shared/registry"
@@ -23,41 +24,56 @@ var quips = []string{
 	"Very doubtful",
 }
 
-type MagicBallPlugin struct {
+type Tpbot struct {
 }
 
 func init() {
-	plugin_registry.RegisterPlugin(&MagicBallPlugin{})
+	plugin_registry.RegisterPlugin(&Tpbot{})
 }
 
-func (m *MagicBallPlugin) OnStart() {
+func (m *Tpbot) OnStart() {
 	log.Println("[pbot] Started")
 	plugin_registry.RegisterCommand("p", "pbot ready")
 	bbs = pbot.NewBBS("./")
 	bbs.Start()
 	go func() {
 		for m := range bbs.Outgoing {
-			if m.Message == "text" {
-				log.Print("Sending message...")
-				bot := plugin_registry.Bot
+			bot := plugin_registry.Bot
 				message := m.UserData.(telebot.Message)
+			if m.Message == "text" {
+				log.Print("Sending message...", m.PayloadString)
 				bot.SendMessage(message.Chat, m.PayloadString, nil)
 				log.Println("Done!")
 			} else {
+				photo, err := telebot.NewFile("botfiles/files/"+m.PayloadString)
+				if err != nil {
+					log.Println("Error creating the new file ")
+					log.Println(err)
+					bot.SendMessage(message.Chat, "Error creating the new file ", nil)
 
-				//fmt.Println(res2)
+				} else {
+					picture := telebot.Photo{File: photo}
+
+					err = bot.SendPhoto(message.Chat, &picture, nil)
+					if err != nil {
+						log.Println("Error sending photo")
+						log.Println(err)
+						bot.SendMessage(message.Chat, "Could not send photo", nil)
+					}
+				}
 			}
 		}
 	}()
 }
 
-func (m *MagicBallPlugin) OnStop() {
+func (m *Tpbot) OnStop() {
 	plugin_registry.UnregisterCommand("p")
 }
 
-func (m *MagicBallPlugin) Run(message telebot.Message) {
+func (m *Tpbot) Run(message telebot.Message) {
 	//config := plugin_registry.Config
 	//if strings.Contains(message.Text, config.CommandPrefix+"p") {
+	fmt.Println(message)
 	bbs.Incoming <- &pbot.BBSmessage{Message: "text", PayloadString: message.Text, UserData: message}
 
 	//}

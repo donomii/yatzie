@@ -17,17 +17,6 @@ import (
 
 var bbs *pbot.BBSdata
 
-var quips = []string{
-	"It is certain", "It is decidedly so", "Without a doubt",
-	"Yes definitely", "You may rely on it", "As I see it, yes",
-	"Most likely", "Outlook good", "Yes", "Signs point to yes",
-	"Reply hazy try again", "Ask again later",
-	"Better not tell you now", "Cannot predict now",
-	"Concentrate and ask again", "Don\"t count on it",
-	"My reply is no", "My sources say no", "Outlook not so good",
-	"Very doubtful",
-}
-
 type Tpbot struct {
 }
 
@@ -35,21 +24,29 @@ func init() {
 	plugin_registry.RegisterPlugin(&Tpbot{})
 }
 
+var chats map[string]telebot.Chat
+
 func (m *Tpbot) OnStart() {
 	log.Println("[pbot] Started")
 	plugin_registry.RegisterCommand("p", "pbot ready")
 	bbs = pbot.NewBBS("./")
 	bbs.Start()
+	fmt.Printf("%+v\n",plugin_registry.Bot)
 	go func() {
 		for m := range bbs.Outgoing {
 			bot := plugin_registry.Bot
-			message := m.UserData.(telebot.Message)
+			var message telebot.Message
+			if m.UserData != nil {
+				message = m.UserData.(telebot.Message)
+				chats[message.Chat.Username] = message.Chat
+			} else {
+				message.Chat = chats[bbs.Config.Get("TelegramOwner")]
+			}
 			if m.Message == "text" {
 				log.Print("Sending message...", m.PayloadString)
-				bot.SendMessage(message.Chat, m.PayloadString, nil)
-				log.Println("Done!")
+				err := bot.SendMessage(message.Chat, m.PayloadString, nil)
+				log.Println("Done!", err)
 			} else {
-
 				data := m.PayloadBytes
 				name := bbs.TempDir+"/"+m.PayloadString
 				err := ioutil.WriteFile(name, data, 0644)
@@ -132,9 +129,12 @@ func getTelegramFile(fileId string) []byte {
 
 
 func (m *Tpbot) Run(message telebot.Message) {
-	//config := plugin_registry.Config
+	config := plugin_registry.Config
+	fmt.Printf("%+v\n",config)
 	//if strings.Contains(message.Text, config.CommandPrefix+"p") {
 	if message.Chat.Username == bbs.Config.Get("TelegramOwner") && message.Chat.Type == "private" {
+	chats = map[string]telebot.Chat{}
+	chats[message.Chat.Username] = message.Chat
 	if message.Text == "" {
 		fmt.Printf("%+v\n", message)
 		photo := message.Photo
@@ -150,6 +150,9 @@ func (m *Tpbot) Run(message telebot.Message) {
 	} else {
 		bbs.Incoming <- &pbot.BBSmessage{Message: "text", PayloadString: message.Text, UserData: message}
 	}
+	} else {
+		bot := plugin_registry.Bot
+		bot.SendMessage(message.Chat, "User '"+ message.Chat.Username + "' not recognised or chat not private", nil)
 	}
 	//}
 }

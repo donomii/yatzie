@@ -43,24 +43,29 @@ func (m *Tpbot) OnStart() {
 	go func() {
 		for m := range bbs.Outgoing {
 			bot := plugin_registry.Bot
-				message := m.UserData.(telebot.Message)
+			message := m.UserData.(telebot.Message)
 			if m.Message == "text" {
 				log.Print("Sending message...", m.PayloadString)
 				bot.SendMessage(message.Chat, m.PayloadString, nil)
 				log.Println("Done!")
 			} else {
-				photo, err := telebot.NewFile("botfiles/files/"+m.PayloadString)
+
+				data := m.PayloadBytes
+				name := bbs.TempDir+"/"+m.PayloadString
+				err := ioutil.WriteFile(name, data, 0644)
 				if err != nil {
 					log.Println("Error creating the new file ")
 					log.Println(err)
 					bot.SendMessage(message.Chat, "Error creating the new file ", nil)
 
 				} else {
-					mtype := fileType("botfiles/files/"+m.PayloadString)
+					//WTF
+					photo, err := telebot.NewFile(name)
+					mtype := fileType(name)
 					if strings.HasPrefix(mtype, "image") {
 						picture := telebot.Photo{File: photo}
 
-						err = bot.SendPhoto(message.Chat, &picture, nil)
+						err = bot.SendPhoto(message.Chat, &picture, &telebot.SendOptions{ReplyTo: message})
 						if err != nil {
 							log.Println("Error sending photo")
 							log.Println(err)
@@ -106,20 +111,42 @@ func fileType (path string) string{
   return kind.MIME.Value
 }
 
+func extension (buf []byte) string{
+  kind, unkwown := filetype.Match(buf)
+  if unkwown != nil {
+    return "application/octet-stream"
+  }
+  return kind.Extension
+}
+
+
+func getTelegramFile(fileId string) []byte {
+	fmt.Printf("FileID: %v\n", fileId)
+	file, _ := plugin_registry.Bot.GetFile(fileId)
+	fmt.Printf("%+v\n",file)
+	url := "https://api.telegram.org/file/bot" + plugin_registry.Config.Token + "/" + file.FilePath
+	data := getUrl(url)
+	return data
+}
+
+
+
 func (m *Tpbot) Run(message telebot.Message) {
 	//config := plugin_registry.Config
 	//if strings.Contains(message.Text, config.CommandPrefix+"p") {
-	if message.Chat.Username == "donomii" && message.Chat.Type == "private" {
+	if message.Chat.Username == bbs.Config.Get("TelegramOwner") && message.Chat.Type == "private" {
 	if message.Text == "" {
 		fmt.Printf("%+v\n", message)
-		fileId := message.Document.File.FileID
-		fmt.Printf("FileID: %v\n", fileId)
-		file, _ := plugin_registry.Bot.GetFile(fileId)
-		fmt.Printf("%+v\n",file)
-		url := "https://api.telegram.org/file/bot" + plugin_registry.Config.Token + "/" + file.FilePath
-		data := getUrl(url)
-		err := ioutil.WriteFile("botfiles/files/"+message.Document.FileName, data, 0644) 
-		fmt.Println(err)
+		photo := message.Photo
+		if photo != nil && len(photo)>2 {
+			photo_id := photo[len(photo)-1].File.FileID			
+			data := getTelegramFile(photo_id)
+			bbs.Files.PutBytes(fmt.Sprintf("%v.pic",photo_id), data)
+		} else {
+			fileId := message.Document.File.FileID
+			data := getTelegramFile(fileId)
+			bbs.Files.PutBytes(message.Document.FileName, data) 
+			}
 	} else {
 		bbs.Incoming <- &pbot.BBSmessage{Message: "text", PayloadString: message.Text, UserData: message}
 	}

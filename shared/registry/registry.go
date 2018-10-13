@@ -27,7 +27,8 @@ import (
 	"strings"
 
 	"github.com/donomii/yatzie/shared/utils"
-	"github.com/tucnak/telebot.v1"
+	"gopkg.in/tucnak/telebot.v1"
+
 )
 
 type TelegramPlugin interface {

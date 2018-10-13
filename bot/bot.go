@@ -23,7 +23,7 @@ package yatziebot
 import (
 	"github.com/donomii/yatzie/shared/registry"
 	"github.com/donomii/yatzie/shared/utils"
-	"github.com/tucnak/telebot.v1"
+	"gopkg.in/tucnak/telebot.v1"
 	"log"
 	"strconv"
 )

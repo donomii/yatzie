@@ -12,7 +12,7 @@ import (
 	"github.com/donomii/pbot"
 	"github.com/donomii/yatzie/shared/registry"
 	//"github.com/donomii/yatzie/shared/utils"
-	"github.com/tucnak/telebot"
+	"gopkg.in/tucnak/telebot.v1"
 )
 
 var bbs *pbot.BBSdata
@@ -132,7 +132,8 @@ func (m *Tpbot) Run(message telebot.Message) {
 	config := plugin_registry.Config
 	fmt.Printf("%+v\n",config)
 	//if strings.Contains(message.Text, config.CommandPrefix+"p") {
-	if message.Chat.Username == bbs.Config.Get("TelegramOwner") && message.Chat.Type == "private" {
+	if  message.Chat.Type == "private" {
+	if message.Chat.Username == bbs.Config.Get("TelegramOwner") {
 	chats = map[string]telebot.Chat{}
 	chats[message.Chat.Username] = message.Chat
 	if message.Text == "" {
@@ -152,7 +153,11 @@ func (m *Tpbot) Run(message telebot.Message) {
 	}
 	} else {
 		bot := plugin_registry.Bot
-		bot.SendMessage(message.Chat, "User '"+ message.Chat.Username + "' not recognised or chat not private", nil)
+		bot.SendMessage(message.Chat, "User '"+ message.Chat.Username + "' not recognised", nil)
+	}
+	} else {
+		bot := plugin_registry.Bot
+		bot.SendMessage(message.Chat, "Chat is not private", nil)
 	}
 	//}
 }

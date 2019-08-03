@@ -1,15 +1,21 @@
 package tpbot
 
 import (
-	"strings"
-	"gopkg.in/h2non/filetype.v1"
+	"encoding/base64"
 	"io/ioutil"
-	"net/http"
 	"log"
+	"net/http"
+	"os"
+	"runtime"
+	"runtime/debug"
+	"strings"
+
+	"gopkg.in/h2non/filetype.v1"
 	//"strings"
 	"fmt"
 
 	"github.com/donomii/pbot"
+	"github.com/donomii/svarmrgo"
 	"github.com/donomii/yatzie/shared/registry"
 	//"github.com/donomii/yatzie/shared/utils"
 	"gopkg.in/tucnak/telebot.v1"
@@ -26,135 +32,185 @@ func init() {
 
 var chats map[string]telebot.Chat
 
-func (m *Tpbot) OnStart() {
-	log.Println("[pbot] Started")
-	plugin_registry.RegisterCommand("p", "pbot ready")
-	bbs = pbot.NewBBS("./")
-	bbs.Start()
-	fmt.Printf("%+v\n",plugin_registry.Bot)
-	go func() {
-		for m := range bbs.Outgoing {
-			bot := plugin_registry.Bot
-			var message telebot.Message
-			if m.UserData != nil {
-				message = m.UserData.(telebot.Message)
-				chats[message.Chat.Username] = message.Chat
-			} else {
-				message.Chat = chats[bbs.Config.Get("TelegramOwner")]
-			}
-			if m.Message == "text" {
-				log.Print("Sending message...", m.PayloadString)
-				err := bot.SendMessage(message.Chat, m.PayloadString, nil)
-				log.Println("Done!", err)
-			} else {
-				data := m.PayloadBytes
-				name := bbs.TempDir+"/"+m.PayloadString
-				err := ioutil.WriteFile(name, data, 0644)
-				if err != nil {
-					log.Println("Error creating the new file ")
-					log.Println(err)
-					bot.SendMessage(message.Chat, "Error creating the new file ", nil)
+func fileType(path string) string {
+	buf, _ := ioutil.ReadFile(path)
 
-				} else {
-					//WTF
-					photo, err := telebot.NewFile(name)
-					mtype := fileType(name)
-					if strings.HasPrefix(mtype, "image") {
-						picture := telebot.Photo{File: photo}
+	kind, unkwown := filetype.Match(buf)
+	if unkwown != nil {
+		return "application/octet-stream"
+	}
+	return kind.MIME.Value
+}
 
-						err = bot.SendPhoto(message.Chat, &picture, &telebot.SendOptions{ReplyTo: message})
-						if err != nil {
-							log.Println("Error sending photo")
-							log.Println(err)
-							bot.SendMessage(message.Chat, "Could not send photo", nil)
-						}
-					} else {
-						d:= telebot.Document{ File: photo, FileName: m.PayloadString, Mime: mtype}
-						err = bot.SendDocument(message.Chat, &d, nil)
-						if err != nil {
-							log.Println("Error sending document")
-							log.Println(err)
-							bot.SendMessage(message.Chat, "Could not send photo", nil)
-						}
-						
-					}
-				}
-			}
+func handleOneOutgoing(m *pbot.BBSmessage) {
+	bot := plugin_registry.Bot
+	defer func() {
+		if r := recover(); r != nil {
+			log.Println("Error handling outgoing messages: ", r)
+			log.Printf("%s: %s", r, debug.Stack())
 		}
 	}()
+
+	//	var err error
+	Chat := chats[m.UserData.(map[string]string)["User"]]
+
+	//time.Sleep(1 * time.Second)
+	log.Printf("Handling message: %+v", m)
+	if m.Message == "text" {
+		log.Printf("Sending message... .%v.", m.PayloadString)
+		bot.SendMessage(Chat, m.PayloadString, nil)
+		log.Println("Done!")
+	} else {
+
+		name := "asdfasdf" + m.PayloadString
+
+		log.Print("Sending file...")
+		/*
+			file := bytes.NewReader(m.PayloadBytes)
+			fileLength := int64(len(m.PayloadBytes))
+			fileName := m.PayloadString
+		*/
+		ioutil.WriteFile(name, m.PayloadBytes, 0644)
+		log.Printf("File type: '%v'", fileType)
+		//fileType := m.Message
+
+		photo, err := telebot.NewFile(name)
+		mtype := fileType(name)
+
+		if strings.HasPrefix(mtype, "image") {
+			picture := telebot.Photo{File: photo}
+			err = bot.SendPhoto(Chat, &picture, &telebot.SendOptions{})
+			if err != nil {
+				log.Println("Error sending photo")
+				log.Println(err)
+				bot.SendMessage(Chat, "Could not send photo", nil)
+			}
+
+		} else {
+
+			d := telebot.Document{File: photo, FileName: m.PayloadString, Mime: "binary/unknown"}
+			err = bot.SendDocument(Chat, &d, nil)
+			if err != nil {
+				log.Println("Error sending document")
+				log.Println(err)
+				bot.SendMessage(Chat, "Could not send photo", nil)
+			}
+
+		}
+	}
+}
+
+func handleMessage(m svarmrgo.Message) []svarmrgo.Message {
+
+	out := []svarmrgo.Message{}
+	switch m.Selector {
+	case "reveal-yourself":
+		m.Respond(svarmrgo.Message{Selector: "announce", Arg: "BBS"})
+	case "shutdown":
+		os.Exit(0)
+	case "outgoing-message":
+		log.Println("Yatziebot handling outgoing message")
+		var msg pbot.BBSmessage
+		msg.UserData = m.NamedArgs
+		msg.Message = m.NamedArgs["Message"]
+		msg.PayloadString = m.NamedArgs["PayloadString"]
+
+		msg.PayloadBytes, _ = base64.StdEncoding.DecodeString(m.NamedArgs["PayloadBytes"])
+
+		//msg.Message = "text"
+		//msg.PayloadString = m.Arg
+
+		handleOneOutgoing(&msg)
+	}
+	return out
+}
+
+func (m *Tpbot) OnStart() {
+	chats = map[string]telebot.Chat{}
+	log.Println("[pbot] Started")
+	plugin_registry.RegisterCommand("p", "pbot ready")
+
+	log.Printf("%+v\n", plugin_registry.Bot)
+
+	runtime.GOMAXPROCS(2)
+	conn := svarmrgo.CliConnect()
+	svarmrgo.HandleInputLoop(conn, handleMessage)
 }
 
 func (m *Tpbot) OnStop() {
 	plugin_registry.UnregisterCommand("p")
 }
 
-func getUrl (url string) []byte {
-resp, err := http.Get(url)
-if err != nil {
-	// handle error
-}
-defer resp.Body.Close()
-body, err := ioutil.ReadAll(resp.Body)
-return body
-}
-
-func fileType (path string) string{
-  buf, _ := ioutil.ReadFile(path)
-
-  kind, unkwown := filetype.Match(buf)
-  if unkwown != nil {
-    return "application/octet-stream"
-  }
-  return kind.MIME.Value
+func getUrl(url string) []byte {
+	resp, err := http.Get(url)
+	if err != nil {
+		// handle error
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	return body
 }
 
-func extension (buf []byte) string{
-  kind, unkwown := filetype.Match(buf)
-  if unkwown != nil {
-    return "application/octet-stream"
-  }
-  return kind.Extension
+func extension(buf []byte) string {
+	kind, unkwown := filetype.Match(buf)
+	if unkwown != nil {
+		return "application/octet-stream"
+	}
+	return kind.Extension
 }
-
 
 func getTelegramFile(fileId string) []byte {
-	fmt.Printf("FileID: %v\n", fileId)
+	log.Printf("FileID: %v\n", fileId)
 	file, _ := plugin_registry.Bot.GetFile(fileId)
-	fmt.Printf("%+v\n",file)
+	log.Printf("%+v\n", file)
 	url := "https://api.telegram.org/file/bot" + plugin_registry.Config.Token + "/" + file.FilePath
 	data := getUrl(url)
 	return data
 }
 
-
-
 func (m *Tpbot) Run(message telebot.Message) {
 	config := plugin_registry.Config
-	fmt.Printf("%+v\n",config)
+	log.Printf("%+v\n", config)
+
 	//if strings.Contains(message.Text, config.CommandPrefix+"p") {
-	if  message.Chat.Type == "private" {
-	if message.Chat.Username == bbs.Config.Get("TelegramOwner") {
-	chats = map[string]telebot.Chat{}
-	chats[message.Chat.Username] = message.Chat
-	if message.Text == "" {
-		fmt.Printf("%+v\n", message)
-		photo := message.Photo
-		if photo != nil && len(photo)>2 {
-			photo_id := photo[len(photo)-1].File.FileID			
-			data := getTelegramFile(photo_id)
-			bbs.Files.PutBytes(fmt.Sprintf("%v.pic",photo_id), data)
-		} else {
-			fileId := message.Document.File.FileID
-			data := getTelegramFile(fileId)
-			bbs.Files.PutBytes(message.Document.FileName, data) 
+	if message.Chat.Type == "private" {
+		log.Println("Yatziebot handling incoming message from user")
+		chats[message.Chat.Username] = message.Chat
+		if message.Text == "" {
+			log.Printf("%+v\n", message)
+			photo := message.Photo
+			if photo != nil && len(photo) > 2 {
+				photo_id := photo[len(photo)-1].File.FileID
+
+				args := map[string]string{}
+				args["Message"] = "photo"
+				args["Sender"] = message.Chat.Username
+				args["Service"] = "Telegram"
+				args["PayloadString"] = fmt.Sprintf("%v.pic", photo_id)
+				args["PayloadBytes"] = string(getTelegramFile(photo_id))
+				svarmrgo.SendMessage(nil, svarmrgo.Message{Selector: "incoming-message", NamedArgs: args})
+
+			} else {
+				fileId := message.Document.File.FileID
+
+				args := map[string]string{}
+				args["Message"] = "file"
+				args["Sender"] = message.Chat.Username
+				args["Service"] = "Telegram"
+				args["PayloadString"] = message.Document.FileName
+				args["PayloadBytes"] = string(getTelegramFile(fileId))
+				svarmrgo.SendMessage(nil, svarmrgo.Message{Selector: "incoming-message", NamedArgs: args})
+
 			}
-	} else {
-		bbs.Incoming <- &pbot.BBSmessage{Message: "text", PayloadString: message.Text, UserData: message}
-	}
-	} else {
-		bot := plugin_registry.Bot
-		bot.SendMessage(message.Chat, "User '"+ message.Chat.Username + "' not recognised", nil)
-	}
+		} else {
+			args := map[string]string{}
+			args["Message"] = "text"
+			args["Sender"] = message.Chat.Username
+			args["Service"] = "Telegram"
+			args["PayloadString"] = message.Text
+			svarmrgo.SendMessage(nil, svarmrgo.Message{Selector: "incoming-message", NamedArgs: args})
+		}
+
 	} else {
 		bot := plugin_registry.Bot
 		bot.SendMessage(message.Chat, "Chat is not private", nil)

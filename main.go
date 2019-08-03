@@ -22,7 +22,7 @@ package main
 
 // Plugins gets automatically loaded on import
 import (
-	"fmt"
+	//"fmt"
 	"log"
 	"os"
 	"time"
@@ -67,7 +67,7 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	fmt.Println("Configuration file: " + configurationFile)
+	log.Println("Using configuration file: " + configurationFile)
 	config, err := util.LoadConfig(configurationFile)
 
 	if logFile != "" {
@@ -82,11 +82,11 @@ func main() {
 	}
 
 	if config.Token != "" {
-		fmt.Println("Token: " + config.Token)
+		log.Println("Token: " + config.Token)
 	}
 
 	if logFile != "" {
-		fmt.Println("Log file: " + logFile)
+		log.Println("Log file: " + logFile)
 	}
 
 	YatzieBot, err := yatziebot.NewBot(config)

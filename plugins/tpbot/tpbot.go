@@ -64,7 +64,7 @@ func handleOneOutgoing(m *pbot.BBSmessage) {
 
 		name := "asdfasdf" + m.PayloadString
 
-		log.Print("Sending file...")
+		log.Print("Sending file... " + name)
 		/*
 			file := bytes.NewReader(m.PayloadBytes)
 			fileLength := int64(len(m.PayloadBytes))

@@ -46,16 +46,17 @@ func handleOneOutgoing(m *pbot.BBSmessage) {
 	bot := plugin_registry.Bot
 	defer func() {
 		if r := recover(); r != nil {
-			log.Println("Error handling outgoing messages: ", r)
 			log.Printf("%s: %s", r, debug.Stack())
+			log.Println("Error handling outgoing messages: ", r)
+
 		}
 	}()
 
+	//time.Sleep(1 * time.Second)
+	log.Printf("Handling message: %+v", m)
 	//	var err error
 	Chat := chats[m.UserData.(map[string]string)["User"]]
 
-	//time.Sleep(1 * time.Second)
-	log.Printf("Handling message: %+v", m)
 	if m.Message == "text" {
 		log.Printf("Sending message... .%v.", m.PayloadString)
 		bot.SendMessage(Chat, m.PayloadString, nil)

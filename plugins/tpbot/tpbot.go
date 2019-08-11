@@ -42,6 +42,13 @@ func fileType(path string) string {
 	return kind.MIME.Value
 }
 
+type OnlyFuckingRetardedProgrammersUseInterfaces struct {
+	S string
+}
+
+func (s OnlyFuckingRetardedProgrammersUseInterfaces) Destination() string {
+	return s.S
+}
 func handleOneOutgoing(m *pbot.BBSmessage) {
 	bot := plugin_registry.Bot
 	defer func() {
@@ -54,12 +61,32 @@ func handleOneOutgoing(m *pbot.BBSmessage) {
 
 	//time.Sleep(1 * time.Second)
 	log.Printf("Handling message: %+v", m)
-	//	var err error
-	Chat := chats[m.UserData.(map[string]string)["User"]]
+	//	var err
+	var Chat telebot.Chat
+	userSettings := m.UserData.(map[string]string)
+	if userSettings == nil {
+		log.Println("No user settings found, cannot send message")
+		return
+	}
+	targetUser := userSettings["User"]
+	targetChat := userSettings["ChatID"]
+	if targetChat == "" {
+		log.Println("Could not find chat id, trying to find via username")
+		Chat = chats[targetUser]
+		targetChat = fmt.Sprintf("%v", Chat.ID)
+	}
+
+	if targetChat == "" {
+		log.Println("Could not get chat id, unable to send message")
+		return
+	}
 
 	if m.Message == "text" {
 		log.Printf("Sending message... .%v.", m.PayloadString)
-		bot.SendMessage(Chat, m.PayloadString, nil)
+		//bot.SendMessage(Chat, m.PayloadString, nil)
+		log.Printf("%+v\n", Chat)
+		fuckingRetards := OnlyFuckingRetardedProgrammersUseInterfaces{targetChat}
+		log.Println(plugin_registry.Bot.SendMessage(fuckingRetards, m.PayloadString, nil))
 		log.Println("Done!")
 	} else {
 
